@@ -1,0 +1,109 @@
+name: Docker Image Build and Release
+
+on:
+  push:
+    paths:
+      - actions-runner/**
+      - azcopy/**
+      - compass-runtime/**
+      - git-tools/**
+      - github-token-manager/**
+      - mlflow/**
+
+jobs:
+  bake:
+    runs-on:
+      group: ArcCI
+    strategy:
+      matrix:
+        context:
+          - actions-runner
+          - azcopy
+          - compass-runtime
+          - git-tools
+          - github-token-manager
+          - mlflow
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set build variables
+        id: build_vars
+        run: |
+          echo -n "check_dir=" >> $GITHUB_OUTPUT
+          BUILD_INFO=$(docker buildx bake -f docker-bake.hcl --print ${{ matrix.context }} | jq -c '.target."${{ matrix.context }}"')
+          BUILD_DIR=$(echo "$BUILD_INFO" | jq -r '.context')
+          DOCKERFILE=$(echo "$BUILD_INFO" | jq -r '.dockerfile')
+          IMAGE_NAME=$(echo "$BUILD_INFO" | jq -r '.tags[0]')
+          echo "dockerfile=./$BUILD_DIR/$DOCKERFILE" >> $GITHUB_OUTPUT
+          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
+
+          CHANGED="false"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            if git rev-parse HEAD~ >/dev/null 2>&1; then
+              CHANGED_FILES=$(git diff --name-only --diff-filter=ACMRT HEAD~ HEAD -- "$BUILD_DIR/" || true)
+              if [ -n "$CHANGED_FILES" ]; then
+                CHANGED="true"
+                echo "Changed files:"
+                echo "$CHANGED_FILES"
+              else
+                echo "No changes detected in $BUILD_DIR."
+              fi
+            else
+              echo "First commit detected."
+              CHANGED="true"
+            fi
+          else
+            echo "Can not detect changes for ${{ github.event_name }} events."
+          fi
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.build_vars.outputs.image_name }}
+          tags: |
+            type=raw,value=latest
+
+      - name: Build and push
+        id: build
+        uses: docker/bake-action@v6
+        if: steps.build_vars.outputs.changed == 'true'
+        env:
+          DOCKER_BUILD_RECORD_RETENTION_DAYS: 3
+        with:
+          files: |
+            ./docker-bake.hcl
+            cwd://${{ steps.meta.outputs.bake-file }}
+          push: true
+          targets: ${{ matrix.context }}
+
+      - name: Scan for vulnerabilities
+        id: scan
+        uses: crazy-max/ghaction-container-scan@v3
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        env:
+          TRIVY_TIMEOUT: 15m
+          # TRIVY_MAX_IMAGE_SIZE: 5GB
+          TRIVY_SKIP_DIRS: "**/.venv,**/node_modules"
+        with:
+          image: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          dockerfile: ${{ steps.build_vars.outputs.dockerfile }}
+          severity_threshold: HIGH
+          annotations: true
