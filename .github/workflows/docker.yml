@@ -4,11 +4,12 @@ on:
   push:
     paths:
       - actions-runner/**
-      - azcopy/**
+      - azure-cli/**
       - compass-runtime/**
       - git-tools/**
       - github-token-manager/**
       - mlflow/**
+      - query-exporter/**
 
 jobs:
   bake:
@@ -18,11 +19,12 @@ jobs:
       matrix:
         context:
           - actions-runner
-          - azcopy
+          - azure-cli
           - compass-runtime
           - git-tools
           - github-token-manager
           - mlflow
+          - query-exporter
     steps:
       - name: Checkout
         uses: actions/checkout@v5

@@ -8,10 +8,10 @@ target "actions-runner" {
   tags       = ["fengheai/actions-runner"]
 }
 
-target "azcopy" {
-  context    = "azcopy"
+target "azure-cli" {
+  context    = "azure-cli"
   dockerfile = "Dockerfile"
-  tags       = ["fengheai/azcopy"]
+  tags       = ["fengheai/azure-cli"]
 }
 
 target "compass-runtime" {
@@ -36,4 +36,10 @@ target "mlflow" {
   context    = "mlflow"
   dockerfile = "Dockerfile"
   tags       = ["fengheai/mlflow"]
+}
+
+target "query-exporter" {
+  context    = "query-exporter"
+  dockerfile = "Dockerfile"
+  tags       = ["fengheai/query-exporter"]
 }
