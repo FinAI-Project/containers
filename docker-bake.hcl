@@ -17,7 +17,7 @@ target "azure-cli" {
 target "compass-runtime" {
   context    = "compass-runtime"
   dockerfile = "Dockerfile"
-  tags       = ["fengheai/compass-runtime"]
+  tags       = ["fengheai/compass-runtime:dev"]
 }
 
 target "git-tools" {

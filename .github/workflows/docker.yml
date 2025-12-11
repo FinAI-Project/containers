@@ -26,6 +26,15 @@ jobs:
           - mlflow
           - query-exporter
     steps:
+      - name: GitHub login
+        id: auth
+        uses: TimoWilhelm/action-github-app-auth@v1.0.0
+        if: matrix.context == 'compass-runtime'
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          installation-id: ${{ secrets.GH_APP_INSTALLATION_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v5
         with:
@@ -45,8 +54,9 @@ jobs:
 
       - name: Set build variables
         id: build_vars
+        env:
+          GITHUB_TOKEN: ${{ steps.auth.outputs.access-token }}
         run: |
-          echo -n "check_dir=" >> $GITHUB_OUTPUT
           BUILD_INFO=$(docker buildx bake -f docker-bake.hcl --print ${{ matrix.context }} | jq -c '.target."${{ matrix.context }}"')
           BUILD_DIR=$(echo "$BUILD_INFO" | jq -r '.context')
           DOCKERFILE=$(echo "$BUILD_INFO" | jq -r '.dockerfile')
@@ -63,16 +73,24 @@ jobs:
                 echo "Changed files:"
                 echo "$CHANGED_FILES"
               else
-                echo "No changes detected in $BUILD_DIR."
+                echo "No changes detected in $BUILD_DIR"
               fi
             else
-              echo "First commit detected."
+              echo "First commit detected"
               CHANGED="true"
             fi
           else
-            echo "Can not detect changes for ${{ github.event_name }} events."
+            echo "Can not detect changes for ${{ github.event_name }} events"
           fi
           echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+
+          if [ -n "$GITHUB_TOKEN" ] && [ "$CHANGED" = "true" ]; then
+            ASSET_DATA=$(curl -sL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/FinAI-Project/fenghe-nn/releases/latest | jq -r '.assets[0]')
+            ASSET_NAME=$(echo $ASSET_DATA | jq -r '.name')
+            ASSET_URL=$(echo $ASSET_DATA | jq -r '.url')
+            mkdir -p compass-runtime/packages
+            curl -sLo "compass-runtime/packages/$ASSET_NAME" -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/octet-stream" "$ASSET_URL"
+          fi
 
       - name: Docker meta
         id: meta
@@ -89,11 +107,14 @@ jobs:
         env:
           DOCKER_BUILD_RECORD_RETENTION_DAYS: 3
         with:
+          source: .
           files: |
             ./docker-bake.hcl
             cwd://${{ steps.meta.outputs.bake-file }}
           push: true
           targets: ${{ matrix.context }}
+          set: |
+            compass-runtime.args.GIT_COMMIT=${{ github.sha }}
 
       - name: Scan for vulnerabilities
         id: scan
@@ -106,6 +127,6 @@ jobs:
           TRIVY_SKIP_DIRS: "**/.venv,**/node_modules"
         with:
           image: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
-          dockerfile: ${{ steps.build_vars.outputs.dockerfile }}
+          # dockerfile: ${{ steps.build_vars.outputs.dockerfile }}
           severity_threshold: HIGH
           annotations: true
