@@ -1,0 +1,9 @@
+# Accept the risk - cross-spawn (package.json)
+CVE-2024-21538 exp:2026-07-01
+# Accept the risk - glob (package.json)
+CVE-2025-64756 exp:2026-07-01
+# Accept the risk - usr/bin/containerd (gobinary)
+CVE-2025-52881 exp:2026-07-01
+CVE-2025-61729 exp:2026-07-01
+# Accept the risk - usr/local/bin/azcopy (gobinary)
+CVE-2025-58183 exp:2026-07-01

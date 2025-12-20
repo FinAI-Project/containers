@@ -1,0 +1,13 @@
+name: Build Actions Runner
+
+on:
+  push:
+    paths:
+      - actions-runner/**
+
+jobs:
+  docker:
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      target: actions-runner
+    secrets: inherit
