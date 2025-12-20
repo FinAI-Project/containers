@@ -1,0 +1,14 @@
+name: Build Compass Runtime
+
+on:
+  push:
+    paths:
+      - compass-runtime/**
+
+jobs:
+  docker:
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      target: compass-runtime
+      # image_tag: dev
+    secrets: inherit
