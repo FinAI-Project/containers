@@ -3,7 +3,10 @@ name: Builds Docker image and push to Docker Hub
 on:
   workflow_call:
     inputs:
-      target:
+      build_context:
+        required: true
+        type: string
+      image_name:
         required: true
         type: string
       image_tag:
@@ -30,7 +33,7 @@ jobs:
       - name: GitHub login
         id: auth
         uses: TimoWilhelm/action-github-app-auth@v1.0.0
-        if: inputs.target == 'compass-runtime'
+        if: inputs.build_context == 'compass-runtime'
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           installation-id: ${{ secrets.GH_APP_INSTALLATION_ID }}
@@ -58,19 +61,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.auth.outputs.access-token }}
         run: |
-          BUILD_INFO=$(docker buildx bake -f docker-bake.hcl --print ${{ inputs.target }} | jq -c '.target."${{ inputs.target }}"')
-          BUILD_DIR=$(echo "$BUILD_INFO" | jq -r '.context')
-          IMAGE_NAME=$(echo "$BUILD_INFO" | jq -r '.tags[0]')
           TRIVY_IGNOREFILE=""
-          if [ -f "$BUILD_DIR/.trivyignore" ]; then
-            TRIVY_IGNOREFILE="$BUILD_DIR/.trivyignore"
-          elif [ -f "$BUILD_DIR/.trivyignore.yaml" ]; then
-            TRIVY_IGNOREFILE="$BUILD_DIR/.trivyignore.yaml"
+          if [ -f "${{ inputs.build_context }}/.trivyignore" ]; then
+            TRIVY_IGNOREFILE="${{ inputs.build_context }}/.trivyignore"
+          elif [ -f "${{ inputs.build_context }}/.trivyignore.yaml" ]; then
+            TRIVY_IGNOREFILE="${{ inputs.build_context }}/.trivyignore.yaml"
           fi
-          echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
           echo "trivy_ignorefile=$TRIVY_IGNOREFILE" >> $GITHUB_OUTPUT
 
-          if [ "${{ inputs.target }}" = "compass-runtime" ]; then
+          if [ "${{ inputs.build_context }}" = "compass-runtime" ]; then
             ASSET_DATA=$(curl -sL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" https://api.github.com/repos/FinAI-Project/fenghe-nn/releases/latest | jq -r '.assets[0]')
             ASSET_NAME=$(echo $ASSET_DATA | jq -r '.name')
             ASSET_URL=$(echo $ASSET_DATA | jq -r '.url')
@@ -82,25 +81,23 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.build_vars.outputs.image_name }}
+          images: ${{ inputs.image_name }}
           tags: |
             type=raw,value=${{ inputs.image_tag }}
 
       - name: Build Docker image
         id: build
-        uses: docker/bake-action@v6
+        uses: docker/build-push-action@v6
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
           DOCKER_BUILD_RECORD_RETENTION_DAYS: 3
         with:
-          source: .
-          files: |
-            ./docker-bake.hcl
-            cwd://${{ steps.meta.outputs.bake-file }}
+          context: ${{ inputs.build_context }}
           load: true
-          targets: ${{ inputs.target }}
-          set: |
-            compass-runtime.args.GIT_COMMIT=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
 
       - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@master
@@ -108,7 +105,7 @@ jobs:
           TRIVY_SKIP_VERSION_CHECK: "true"
           TRIVY_DISABLE_VEX_NOTICE: "true"
         with:
-          image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          image-ref: ${{ steps.meta.outputs.tags }}
           format: table
           exit-code: "1"
           ignore-unfixed: true
@@ -118,4 +115,4 @@ jobs:
 
       - name: Push Docker image
         run: |
-          docker push ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+          docker push ${{ steps.meta.outputs.tags }}

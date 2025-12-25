@@ -36,11 +36,16 @@ ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 RUN set -e; \
     apt-get update; \
     apt-get upgrade -y; \
-    apt-get install -y --no-install-recommends tzdata git make curl rsync; \
+    apt-get install -y --no-install-recommends tzdata git make curl rsync ninja-build; \
     pip cache purge; \
     ln -snf /usr/share/zoneinfo/$TZ /etc/localtime; \
     echo $TZ > /etc/timezone; \
     sh -c "$(curl -sL https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin; \
+    curl -sLO https://developer.download.nvidia.cn/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb; \
+    dpkg -i cuda-keyring_1.1-1_all.deb; \
+    rm cuda-keyring_1.1-1_all.deb; \
+    apt-get update; \
+    apt-get install -y cuda-toolkit-12-8; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*; \
     useradd --create-home $APP_USER; \
@@ -48,6 +53,10 @@ RUN set -e; \
     chown $APP_USER:$APP_USER $APP_DIR; \
     ln -s $APP_DIR/bin/sync-entrypoint.sh /home/$APP_USER/sync-entrypoint.sh; \
     git config --system --add safe.directory '*'
+
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64
 
 COPY --from=builder $APP_DIR $APP_DIR
 

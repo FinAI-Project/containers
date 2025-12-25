@@ -9,6 +9,7 @@ jobs:
   docker:
     uses: ./.github/workflows/docker-build.yml
     with:
-      target: compass-runtime
-      # image_tag: dev
+      build_context: compass-runtime
+      image_name: fengheai/compass-runtime
+      image_tag: dev
     secrets: inherit
