@@ -9,8 +9,8 @@ all: check-updates
 
 ensure-venv:
 	@if [ ! -d "$(VENV_DIR)" ]; then \
-		echo "Error: Virtual environment $(VENV_DIR) does not exist. Aborting."; \
-		exit 1; \
+		echo "Creating virtual environment..."; \
+		$(PYTHON) -m venv $(VENV_DIR); \
 	fi
 
 check-deps: ensure-venv

@@ -9,5 +9,6 @@ jobs:
   docker:
     uses: ./.github/workflows/docker-build.yml
     with:
-      target: actions-runner
+      build_context: actions-runner
+      image_name: fengheai/actions-runner
     secrets: inherit

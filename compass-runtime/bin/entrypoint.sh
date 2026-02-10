@@ -24,21 +24,29 @@ if [ -n "$GITHUB_REPO" ]; then
     set +e
 fi
 
-mkdir -p /tmp/runner
-cd /tmp/runner
-if [ -n "$OUTPUT_DIR" ] && [ -d "$OUTPUT_DIR" ]; then
-    cp -rpv "$OUTPUT_DIR/"* .
-fi
-if [ -f "done" ]; then
-    rm done
-fi
-"$@"
-EXIT_CODE=$?
-echo -n $EXIT_CODE > /tmp/runner/done
+if [ "$JOB_MODEL_VERSION" = "v4" ]; then
+    mkdir -p $OUTPUT_DIR
+    cd $OUTPUT_DIR
+    "$@"
+    EXIT_CODE=$?
+    echo -n $EXIT_CODE > $OUTPUT_DIR/done
+else
+    mkdir -p /tmp/runner
+    cd /tmp/runner
+    if [ -n "$OUTPUT_DIR" ] && [ -d "$OUTPUT_DIR" ]; then
+        cp -rpv "$OUTPUT_DIR/"* .
+    fi
+    if [ -f "done" ]; then
+        rm done
+    fi
+    "$@"
+    EXIT_CODE=$?
+    echo -n $EXIT_CODE > /tmp/runner/done
 
-if [ -n "$WORK_DIR" ] && [[ "$WORK_DIR" == /output/* ]]; then
-    mkdir -p "$WORK_DIR"
-    cp -R --preserve=timestamps . "$WORK_DIR"
+    if [ -n "$WORK_DIR" ] && [[ "$WORK_DIR" == /output/* ]]; then
+        mkdir -p "$WORK_DIR"
+        cp -R --preserve=timestamps . "$WORK_DIR"
+    fi
 fi
 
 exit $EXIT_CODE
