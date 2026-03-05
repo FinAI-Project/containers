@@ -13,6 +13,9 @@ on:
         required: false
         type: string
         default: latest
+      skip_trivy:
+        type: boolean
+        default: false
     secrets:
       GH_APP_ID:
         required: true
@@ -101,9 +104,11 @@ jobs:
 
       - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@master
+        if: ${{ ! inputs.skip_trivy }}
         env:
           TRIVY_SKIP_VERSION_CHECK: "true"
           TRIVY_DISABLE_VEX_NOTICE: "true"
+          # TRIVY_MAX_IMAGE_SIZE: 5GB
         with:
           image-ref: ${{ steps.meta.outputs.tags }}
           format: table
@@ -115,4 +120,4 @@ jobs:
 
       - name: Push Docker image
         run: |
-          docker push ${{ steps.meta.outputs.tags }}
+          docker push --quiet ${{ steps.meta.outputs.tags }}
