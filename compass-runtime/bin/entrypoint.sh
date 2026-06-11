@@ -1,44 +1,79 @@
 #!/usr/bin/env bash
 
-if [ -n "$EXTRA_INIT_SCRIPT" ] && [ -f "$EXTRA_INIT_SCRIPT" ]; then
-    . "$EXTRA_INIT_SCRIPT"
+if [ "$#" -eq 0 ]; then
+    echo "No command provided" >&2
+    exit 1
 fi
 
-if [ -n "$GITHUB_REPO" ]; then
-    TOKEN=$(python get-token.py) || {
-        echo "get token failed: $TOKEN"
-        exit 1
-    }
+if [ -z "${OUTPUT_DIR:-}" ]; then
+    echo "OUTPUT_DIR is not set" >&2
+    exit 2
+fi
 
-    set -e
-    REPO_URL="https://x-access-token:$TOKEN@github.com/$GITHUB_REPO.git"
-    if [ -n "$GITHUB_REF" ]; then
-        git clone --branch "$GITHUB_REF" --recurse-submodules "$REPO_URL"
+set -euo pipefail
+
+CHILD_PID=""
+OUTPUT_TAR="${OUTPUT_DIR%/}.tar.gz"
+OUTPUT_TMP="${OUTPUT_TAR}.tmp"
+
+_output_handler() {
+    local output_path="$1"
+
+    find . -type d -name .cache -prune -exec rm -rf {} +
+    if [[ "${COMPUTING_GROUP:-}" == azure-* ]]; then
+        mkdir -p "$OUTPUT_DIR"
+        cp -a . "$OUTPUT_DIR"/
     else
-        git clone --recurse-submodules "$REPO_URL"
-        if [ -n "$GITHUB_SHA" ]; then
-            cd $(basename "$GITHUB_REPO")
-            git reset --hard "$GITHUB_SHA"
-        fi
+        tmp_file=$(mktemp)
+        tar -zcvf "$tmp_file" .
+        cp "$tmp_file" "$output_path"
+        rm -f "$tmp_file"
     fi
-    set +e
-fi
+}
+
+_term_handler() {
+    trap - TERM INT
+    echo "Received termination signal, killing child process: ${CHILD_PID}" >&2
+    if [ -n "${CHILD_PID}" ] && kill -0 "${CHILD_PID}" 2>/dev/null; then
+        kill -TERM "${CHILD_PID}" 2>/dev/null || true
+        wait "${CHILD_PID}" 2>/dev/null || true
+    fi
+    _output_handler "$OUTPUT_TMP"
+    exit 143
+}
 
 mkdir -p /tmp/runner
 cd /tmp/runner
-if [ -n "$OUTPUT_DIR" ] && [ -d "$OUTPUT_DIR" ]; then
-    cp -rpv "$OUTPUT_DIR/"* .
+
+trap _term_handler TERM INT
+
+if [ -n "$OUTPUT_DIR" ]; then
+    if [ -f "$OUTPUT_TMP" ]; then
+        tar -zxvf "$OUTPUT_TMP" -C .
+    elif [ -d "$OUTPUT_DIR" ]; then
+        cp -a "$OUTPUT_DIR"/. .
+    fi
 fi
-if [ -f "done" ]; then
-    rm done
-fi
-"$@"
+
+python /app/gen-cuda-env.py /tmp/cuda.env
+source /tmp/cuda.env
+
+START_TIME=$(date -u +%s)
+
+set +e
+"$@" &
+CHILD_PID=$!
+wait "$CHILD_PID"
 EXIT_CODE=$?
-echo -n $EXIT_CODE > /tmp/runner/done
+set -e
 
-if [ -n "$WORK_DIR" ] && [[ "$WORK_DIR" == /output/* ]]; then
-    mkdir -p "$WORK_DIR"
-    cp -R --preserve=timestamps . "$WORK_DIR"
-fi
+trap - TERM INT
 
-exit $EXIT_CODE
+printf '%s' "$EXIT_CODE" > done
+
+_output_handler "$OUTPUT_TAR"
+rm -f "$OUTPUT_TMP"
+
+python /app/slack-notifier.py --start-time="$START_TIME" --exit-code="$EXIT_CODE"
+
+exit "$EXIT_CODE"
