@@ -1,0 +1,15 @@
+name: Build Actions Runner
+
+on:
+  push:
+    paths:
+      - actions-runner/**
+
+jobs:
+  docker:
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      build_context: actions-runner
+      image_name: fengheai/actions-runner
+      skip_trivy: true
+    secrets: inherit
