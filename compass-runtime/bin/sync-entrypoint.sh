@@ -10,12 +10,12 @@ set +e
 while [ ! -f "$WORK_DIR/done" ]; do
     minute=$(date +'%-M')
     if [ $((minute % 10)) -eq 0 ]; then
-        rsync -rlt --exclude=".*" --exclude "core.*" "$WORK_DIR/" "$OUTPUT_DIR"
+        rsync -rlt --exclude=".*" --exclude "core*" "$WORK_DIR/" "$OUTPUT_DIR"
     fi
     sleep 60
 done
 
-rsync -rltv --delete --exclude "core.*" "$WORK_DIR/" "$OUTPUT_DIR"
+rsync -rltv --delete --exclude "core*" "$WORK_DIR/" "$OUTPUT_DIR"
 if [ -n "$WEBHOOK_URL" ]; then
     END_TIME=$(date "+%b %d %H:%M:%S %z")
     EXIT_CODE=$(cat "$WORK_DIR/done")

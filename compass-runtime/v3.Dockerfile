@@ -19,7 +19,7 @@ WORKDIR $APP_DIR
 COPY --chown=$APP_USER:$APP_USER . .
 RUN set -e; \
     python -m venv .venv; \
-    pip install --no-cache -r requirements.txt --find-links=./packages --extra-index-url=https://pypi.nvidia.com; \
+    pip install --no-cache -r requirements-v3.txt --extra-index-url=https://pypi.nvidia.com; \
     rm -rf packages;
 
 FROM python:${PYTHON_VERSION}-slim-bookworm

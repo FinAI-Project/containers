@@ -6,7 +6,6 @@ cryptography==46.0.3
 cudf-cu12==25.12.0
 duckdb==1.4.3
 filelock==3.20.1
-finai==0.0.1 # rc:ignore
 fsspec==2025.12.0
 hydra-core==1.3.2
 jinja2==3.1.6

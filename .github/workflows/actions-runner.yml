@@ -11,5 +11,4 @@ jobs:
     with:
       build_context: actions-runner
       image_name: fengheai/actions-runner
-      skip_trivy: true
     secrets: inherit
