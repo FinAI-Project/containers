@@ -19,40 +19,39 @@ jobs:
         with:
           base: ${{ github.ref }}
           filters: |
+            v1:
+              - 'compass-runtime/v1.Dockerfile'
+              - 'compass-runtime/requirements-v1.txt'
+              - 'compass-runtime/bin/*'
             v3:
               - 'compass-runtime/v3.Dockerfile'
               - 'compass-runtime/requirements-v3.txt'
-              - 'compass-runtime/*.py'
               - 'compass-runtime/bin/*'
             v4:
               - 'compass-runtime/v4.Dockerfile'
               - 'compass-runtime/requirements-v4.txt'
-              - 'compass-runtime/*.py'
               - 'compass-runtime/bin/*'
 
       - name: Generate Docker build matrix
         id: matrix
         shell: bash
         env:
-          V3_CHANGED: ${{ steps.filter.outputs.v3 }}
+          V1_CHANGED: ${{ steps.filter.outputs.v1 }}
+          # V3_CHANGED: ${{ steps.filter.outputs.v3 }}
           V4_CHANGED: ${{ steps.filter.outputs.v4 }}
         run: |
           matrix='{"include":[]}'
 
+          if [[ "$V1_CHANGED" == "true" ]]; then
+            matrix=$(jq -c '.include += [{"tag": "v1"}]' <<< "$matrix")
+          fi
+
           if [[ "$V3_CHANGED" == "true" ]]; then
-            matrix=$(jq -c \
-              '.include += [{
-                "tag": "v3",
-                "dockerignore": "v4"
-              }]' <<< "$matrix")
+            matrix=$(jq -c '.include += [{"tag": "v3"}]' <<< "$matrix")
           fi
 
           if [[ "$V4_CHANGED" == "true" ]]; then
-            matrix=$(jq -c \
-              '.include += [{
-                "tag": "v4",
-                "dockerignore": "v3"
-              }]' <<< "$matrix")
+            matrix=$(jq -c '.include += [{"tag": "v4"}]' <<< "$matrix")
           fi
 
           if [[ "$matrix" == '{"include":[]}' ]]; then
@@ -77,5 +76,4 @@ jobs:
       build_file: compass-runtime/${{ matrix.tag }}.Dockerfile
       image_name: fengheai/compass-runtime
       image_tag: ${{ matrix.tag }}
-      dockerignore: ${{ matrix.dockerignore }}
     secrets: inherit

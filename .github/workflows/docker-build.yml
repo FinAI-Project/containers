@@ -14,8 +14,6 @@ on:
       image_tag:
         type: string
         default: latest
-      dockerignore:
-        type: string
     secrets:
       DOCKERHUB_USERNAME:
         required: true
@@ -45,9 +43,13 @@ jobs:
         uses: docker/setup-buildx-action@v4
 
       - name: Generate .dockerignore
-        if: inputs.dockerignore != ''
         run: |
-          echo "*${{ inputs.dockerignore }}*" > ${{ inputs.build_context }}/.dockerignore
+          cat > ${{ inputs.build_context }}/.dockerignore << 'EOF'
+          requirements-*.txt
+          *.Dockerfile
+          !requirements-${{ inputs.image_tag }}.txt
+          !${{ inputs.image_tag }}.Dockerfile
+          EOF
 
       - name: Docker meta
         id: meta

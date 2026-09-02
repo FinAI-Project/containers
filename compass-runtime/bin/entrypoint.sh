@@ -20,12 +20,13 @@ _output_handler() {
     local output_path="$1"
 
     find . -type d -name .cache -prune -exec rm -rf {} +
-    if [[ "${COMPUTING_GROUP:-}" == azure-* ]]; then
+    if [ "${CLOUD_PLATFORM}" == "azure" ]; then
         mkdir -p "$OUTPUT_DIR"
-        cp -a . "$OUTPUT_DIR"/
+        rsync -rltv --exclude=".*" --exclude "core*" --exclude='mlruns' ./ "$OUTPUT_DIR"/
     else
         tmp_file=$(mktemp)
-        tar -zcvf "$tmp_file" .
+        tar --exclude='mlruns' -zcvf "$tmp_file" .
+        mkdir -p $(dirname "$output_path")
         cp "$tmp_file" "$output_path"
         rm -f "$tmp_file"
     fi
@@ -58,13 +59,6 @@ if [ -n "$OUTPUT_DIR" ]; then
     fi
 fi
 
-if [ "$JOB_MODEL_VERSION" = "v4" ]; then
-    python /app/gen-cuda-env.py /tmp/cuda.env
-    source /tmp/cuda.env
-fi
-
-START_TIME=$(date -u +%s)
-
 set +e
 "$@" &
 CHILD_PID=$!
@@ -78,7 +72,5 @@ printf '%s' "$EXIT_CODE" > done
 
 _output_handler "$OUTPUT_TAR"
 rm -f "$OUTPUT_TMP"
-
-python /app/slack-notifier.py --start-time="$START_TIME" --exit-code="$EXIT_CODE"
 
 exit "$EXIT_CODE"

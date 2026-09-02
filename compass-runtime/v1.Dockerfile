@@ -1,5 +1,4 @@
-ARG PYTHON_VERSION=3.12
-FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 AS cuda
+ARG PYTHON_VERSION=3.10
 FROM python:${PYTHON_VERSION}-slim-bookworm
 
 ARG GIT_COMMIT
@@ -10,11 +9,9 @@ ENV TZ=Asia/Singapore
 ENV RUNTIME_VERSION="${GIT_COMMIT}"
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --from=cuda /usr/local/cuda-12.8 /usr/local/cuda
-
 RUN set -e; \
     apt-get update; \
-    apt-get install -y --no-install-recommends build-essential tzdata git make cmake curl rsync unzip; \
+    apt-get install -y --no-install-recommends build-essential tzdata git make curl rsync unzip; \
     ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime; \
     echo "${TZ}" > /etc/timezone; \
     curl -fsSL "https://downloads.rclone.org/rclone-current-linux-amd64.zip" -o /tmp/rclone.zip; \
@@ -28,18 +25,15 @@ RUN set -e; \
     chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}" /data /output;
 
 ENV JOB_MODEL_VERSION="v4"
-ENV CUDA_HOME="/usr/local/cuda"
 ENV VIRTUAL_ENV="${APP_DIR}/.venv"
-ENV PATH="${VIRTUAL_ENV}/bin:${CUDA_HOME}/bin:${PATH}"
-ENV LD_LIBRARY_PATH="${CUDA_HOME}/lib64"
-# ENV CPATH="${CUDA_HOME}/include"
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 USER ${APP_USER}
 WORKDIR ${APP_DIR}
 COPY --chown=${APP_USER}:${APP_USER} . .
 RUN set -e; \
     python -m venv .venv; \
-    pip install --no-cache -r requirements-v4.txt; \
+    pip install --no-cache -r requirements-v1.txt; \
     git config --global credential.helper '/app/bin/git-credential-helper.py'; \
     git config --global --add safe.directory /app/code;
 
