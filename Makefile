@@ -10,7 +10,7 @@ all: check-updates
 ensure-venv:
 	@if [ ! -d "$(VENV_DIR)" ]; then \
 		echo "Creating virtual environment..."; \
-		$(PYTHON) -m venv $(VENV_DIR); \
+		python -m venv $(VENV_DIR); \
 	fi
 
 check-deps: ensure-venv
@@ -20,11 +20,17 @@ check-deps: ensure-venv
 	fi
 
 check-updates: check-deps
-	@for file in $$(find . -maxdepth 2 -mindepth 2 -name requirements.txt); do \
-		cd $$(dirname "$$file"); \
-		$(REQUIREMENTS_CHECK) --no-confirm || { echo "Error: requirementscheck failed for $$file. Aborting."; exit 1; }; \
-		cd - > /dev/null; \
-	done
+# 	@for file in $$(find . -maxdepth 2 -mindepth 2 -name requirements.txt); do \
+# 		cd $$(dirname "$$file"); \
+# 		$(REQUIREMENTS_CHECK) --no-confirm || { echo "Error: requirementscheck failed for $$file. Aborting."; exit 1; }; \
+# 		cd - > /dev/null; \
+# 	done
+	@set -eu; \
+	TMP_DIR=$$(mktemp -d); \
+	trap 'rm -rf "$$TMP_DIR"' EXIT; \
+	cp compass-runtime/requirements-v4.txt "$$TMP_DIR/requirements-v4.txt"; \
+	(cd "$$TMP_DIR" && requirementscheck --no-confirm); \
+	mv "$$TMP_DIR/requirements-v4.txt" compass-runtime/requirements-v4.txt;
 
 dryrun:
 	docker run -it --rm \

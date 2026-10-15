@@ -7,17 +7,27 @@ on:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: ArcCI
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       has_changes: ${{ steps.matrix.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Resolve previous commit
+        id: previous
+        shell: bash
+        run: |
+          echo "sha=$(git rev-parse HEAD^)" >> "$GITHUB_OUTPUT"
 
       - uses: dorny/paths-filter@v4
         id: filter
         with:
-          base: ${{ github.ref }}
+          base: ${{ steps.previous.outputs.sha }}
+          ref: ${{ github.sha }}
           filters: |
             v1:
               - 'compass-runtime/v1.Dockerfile'
